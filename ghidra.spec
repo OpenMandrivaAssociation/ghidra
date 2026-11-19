@@ -48,6 +48,8 @@ BuildRequires:	unzip
 
 # Launch scripts look for a JDK (javac) under /usr/lib/jvm.
 Requires:	java-devel >= 25
+# java.desktop and libjawt are in the gui subpackage, not the headless JRE.
+Requires:	java-25-openjdk-gui
 Requires:	python
 Requires:	python-pip
 # libz3java.so is stored inside the SymbolicSummaryZ3 extension zip, so the
