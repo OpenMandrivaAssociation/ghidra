@@ -1,3 +1,15 @@
+--- a/build.gradle
++++ b/build.gradle
+@@ -90,8 +90,8 @@
+ if (flatRepo.isDirectory()) {
+ 	allprojects {
+ 		repositories {
+-			mavenLocal()
++			// No developer-local Maven repository in the package build.
+ 			mavenCentral()
+ 			flatDir name: "flat", dirs:["$flatRepo"]
+ 		}
+ 	}
 --- a/GPL/nativeBuildProperties.gradle
 +++ b/GPL/nativeBuildProperties.gradle
 @@ -40,8 +40,8 @@

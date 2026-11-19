@@ -1,7 +1,7 @@
 sources:
   Ghidra_12.2_build.tar.gz: 0b921754d0069c8db99fb3558a5397b2d923692d
   ghidra-12.2-dependencies.tar.xz: 55ab7c7147c26dfa824d8f2c42016c963b4f0fb1
-  ghidra-12.2-gradle-cache.tar.xz: f686f2ed2cb8b05e494083b82b569dfcdfa85963
   protobuf-31.0.tar.gz: c0cecb7cfc881f56a5b09f00a965aae408265fd0
   abseil-cpp-20250127.0.tar.gz: 3e4a608cfdb580126b90ae651bcc6261357511ce
   z3-4.13.3.tar.gz: cf98065f0f392e4bfca40550e0792b2ee59d6c89
+  ghidra-12.2-gradle-cache.tar.xz: f62c897b33b713b1fe900472af36b768d7897456
