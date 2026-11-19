@@ -33,6 +33,8 @@ BuildRequires:	clang
 BuildRequires:	cmake
 BuildRequires:	gradle >= 9.1
 BuildRequires:	java-25-openjdk-devel
+# Z3's FindJNI requires libjawt, which is not pulled in by the devel package.
+BuildRequires:	java-25-openjdk-gui
 BuildRequires:	ninja
 BuildRequires:	patchelf
 BuildRequires:	pkgconfig(python3)
