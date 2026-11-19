@@ -1,0 +1,261 @@
+--- a/GPL/nativeBuildProperties.gradle
++++ b/GPL/nativeBuildProperties.gradle
+@@ -40,8 +40,8 @@
+ 	toolChains {
+ 		def current = getCurrentPlatformName()
+ 		if (isLinux(current)) {
+-			// https://github.com/gradle/gradle/issues/17660 (fixed in Gradle 8.11)
+-			gcc(Gcc).target(current)
++			// OpenMandriva builds natives with clang. Registering gcc as well
++			// makes Gradle pick gcc, which is listed first.
+ 			clang(Clang).target(current)
+ 		}
+ 		if (isFreeBSD(current)) {
+--- a/Ghidra/Features/Decompiler/buildNatives.gradle
++++ b/Ghidra/Features/Decompiler/buildNatives.gradle
+@@ -201,19 +201,14 @@
+ 						srcDir "src/decompile/cpp"
+ 					}
+ 				} // end cpp
+-				
+-				c {
+-					source {
+-						srcDir "src/decompile/zlib"
+-						include "*.c"
+-					}
+-				}
+ 			} // end sources (sleigh)
+ 			
+ 			binaries {
+ 				all{ b ->
+-					b.cppCompiler.define "LOCAL_ZLIB"
+-					b.cCompiler.define "NO_GZIP"
++					// System zlib. The bundled copy under src/decompile/zlib is not compiled.
++					if (b.targetPlatform.operatingSystem.linux) {
++						b.linker.args "-lz"
++					}
+ 				}
+ 			} // end binaries.all (sleigh)
+ 		} // end sleigh
+@@ -272,6 +267,8 @@
+ 				b.cppCompiler.args "-Wno-sign-compare"
+ 				b.cppCompiler.args "-w"
+ 				if (b.targetPlatform.operatingSystem.linux) {
++					b.cppCompiler.define "LINUX"
++					b.cppCompiler.define "_LINUX"
+ //					b.linker.args "-static"
+ 				}
+ 			}
+--- a/Ghidra/Features/FileFormats/buildNatives.gradle
++++ b/Ghidra/Features/FileFormats/buildNatives.gradle
+@@ -85,6 +85,10 @@
+ 				b.cCompiler.args "-std=c99"
+ 				b.cCompiler.args "-Wall"
+ 				b.cCompiler.args "-O2"
++				if (b.targetPlatform.operatingSystem.linux) {
++					b.cCompiler.define "LINUX"
++					b.cCompiler.define "_LINUX"
++				}
+ 				if (b.targetPlatform.operatingSystem.name == "freebsd") {
+ 					b.cCompiler.define "_XOPEN_SOURCE", "600"
+ 				}
+--- a/GPL/DemanglerGnu/build.gradle
++++ b/GPL/DemanglerGnu/build.gradle
+@@ -149,6 +149,7 @@
+ 					cCompiler.args "-DHAVE_STRING_H"
+ 				}
+ 				else if (toolChain in Clang) {
++					cCompiler.args "-std=gnu17"
+ 					cCompiler.args "-DHAVE_STDLIB_H"
+ 					cCompiler.args "-DHAVE_STRING_H"
+ 				}
+@@ -167,6 +168,7 @@
+ 					cCompiler.args "-DHAVE_STRING_H"
+ 				}
+ 				else if (toolChain in Clang) {
++					cCompiler.args "-std=gnu17"
+ 					cCompiler.args "-DMAIN_CPLUS_DEM"
+ 					cCompiler.args "-DHAVE_STDLIB_H"
+ 					cCompiler.args "-DHAVE_STRING_H"
+--- a/gradle/hasProtobuf.gradle
++++ b/gradle/hasProtobuf.gradle
+@@ -22,40 +22,11 @@
+ 	protocArtifact
+ }
+ 
+-def platform = getCurrentPlatformName()
+-
+-def version = getProperty('ghidra.protobuf.java.version')
+-
+-
+ dependencies {
+-	allProtocArtifacts "com.google.protobuf:protoc:${version}:windows-x86_64@exe"
+-	allProtocArtifacts "com.google.protobuf:protoc:${version}:linux-x86_64@exe"
+-	allProtocArtifacts "com.google.protobuf:protoc:${version}:linux-aarch_64@exe"
+-	allProtocArtifacts "com.google.protobuf:protoc:${version}:osx-x86_64@exe"
+-	allProtocArtifacts "com.google.protobuf:protoc:${version}:osx-aarch_64@exe"
+-
+-	if (isCurrentWindows()) {
+-		protocArtifact "com.google.protobuf:protoc:${version}:windows-x86_64@exe"
+-	}
+-	if (isCurrentLinux()) {
+-		if (platform.endsWith("x86_64")) {
+-			protocArtifact "com.google.protobuf:protoc:${version}:linux-x86_64@exe"
+-		}
+-		else {
+-			protocArtifact "com.google.protobuf:protoc:${version}:linux-aarch_64@exe"
+-		}
+-	}
+-	if (isCurrentMac()) {
+-		if (platform.endsWith("x86_64")) {
+-			protocArtifact "com.google.protobuf:protoc:${version}:osx-x86_64@exe"
+-		}
+-		else {
+-			protocArtifact "com.google.protobuf:protoc:${version}:osx-aarch_64@exe"
+-		}
+-	}
+-	if (isCurrentOpenBSD()) {
+-		protocArtifact files('/usr/local/bin/protoc')
+-	}
++	// Build protoc from the matching protobuf release. Do not download the
++	// prebuilt Maven executables (they are not available for every architecture).
++	def protoc = findProperty('protocPath') ?: '/usr/bin/protoc'
++	protocArtifact files(protoc)
+ }
+ 
+ /*protobuf {
+--- a/Ghidra/Features/PyGhidra/build.gradle
++++ b/Ghidra/Features/PyGhidra/build.gradle
+@@ -34,26 +34,8 @@
+ // require any dependencies except setuptools. Installing the wheel will require
+ // the correct os/python version of Jpype and packaging. Installing the wheel does
+ // not require Ghidra.
+-distributePyDep("jpype1-1.5.2-cp313-cp313-win_amd64.whl")
+-distributePyDep("jpype1-1.5.2-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl")
+-distributePyDep("jpype1-1.5.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl")
+-distributePyDep("jpype1-1.5.2-cp313-cp313-macosx_10_13_universal2.whl")
+-distributePyDep("jpype1-1.5.2-cp312-cp312-win_amd64.whl")
+-distributePyDep("jpype1-1.5.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl")
+-distributePyDep("jpype1-1.5.2-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl")
+-distributePyDep("jpype1-1.5.2-cp312-cp312-macosx_10_9_universal2.whl")
+-distributePyDep("jpype1-1.5.2-cp311-cp311-win_amd64.whl")
+-distributePyDep("jpype1-1.5.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl")
+-distributePyDep("jpype1-1.5.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl")
+-distributePyDep("jpype1-1.5.2-cp311-cp311-macosx_10_9_universal2.whl")
+-distributePyDep("jpype1-1.5.2-cp310-cp310-win_amd64.whl")
+-distributePyDep("jpype1-1.5.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl")
+-distributePyDep("jpype1-1.5.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl")
+-distributePyDep("jpype1-1.5.2-cp310-cp310-macosx_10_9_universal2.whl")
+-distributePyDep("jpype1-1.5.2-cp39-cp39-win_amd64.whl")
+-distributePyDep("jpype1-1.5.2-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl")
+-distributePyDep("jpype1-1.5.2-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl")
+-distributePyDep("jpype1-1.5.2-cp39-cp39-macosx_10_9_x86_64.whl")
++// Foreign-arch and Windows wheels are not redistributed. The sdist is built
++// for the running interpreter while the package is installed.
+ distributePyDep("jpype1-1.5.2.tar.gz")
+ distributePyDep("packaging-25.0-py3-none-any.whl")
+ distributePyDep("setuptools-80.9.0-py3-none-any.whl")
+--- a/Ghidra/Debug/Debugger-agent-dbgeng/build.gradle
++++ b/Ghidra/Debug/Debugger-agent-dbgeng/build.gradle
+@@ -85,20 +85,5 @@
+ 	}
+ }
+ 
+-distributePyDep("pybag-2.2.16-py3-none-any.whl")
+-distributePyDep("capstone-5.0.6-py3-none-win_amd64.whl")
+-distributePyDep("comtypes-1.4.13-py3-none-any.whl")
+-distributePyDep("pywin32-311-cp39-cp39-win_amd64.whl")
+-distributePyDep("pywin32-311-cp310-cp310-win_amd64.whl")
+-distributePyDep("pywin32-311-cp311-cp311-win_amd64.whl")
+-distributePyDep("pywin32-311-cp312-cp312-win_amd64.whl")
+-distributePyDep("pywin32-311-cp313-cp313-win_amd64.whl")
+-distributePyDep("pywin32-311-cp314-cp314-win_amd64.whl")
+-distributePyDep("win32more-0.7.0-py3-none-any.whl")
+-distributePyDep("win32more_appsdk-0.7.3-py2.py3-none-any.whl")
+-distributePyDep("win32more_core-0.7.0-py2.py3-none-any.whl")
+-distributePyDep("win32more_microsoft_graphics_win2d-0.7.1.3.2-py2.py3-none-any.whl")
+-distributePyDep("win32more_microsoft_web_webview2-0.7.1.0.3650.58-py2.py3-none-any.whl")
+-distributePyDep("win32more_microsoft_windows_sdk_contracts-0.7.10.0.26100.6901-py2.py3-none-any.whl")
+-distributePyDep("win32more_microsoft_windows_sdk_win32metadata-0.7.68.0.4-py2.py3-none-any.whl")
+-distributePyDep("win32more_microsoft_windowsappsdk-0.7.1.8.251106002-py2.py3-none-any.whl")
++// Windows dbgeng wheels are not redistributed. The agent sources stay in the
++// tree; those dependencies only install on Windows.
+--- a/GhidraBuild/EclipsePlugins/GhidraDev/GhidraDevPlugin/build.gradle
++++ b/GhidraBuild/EclipsePlugins/GhidraDev/GhidraDevPlugin/build.gradle
+@@ -126,12 +126,15 @@
+ 	dependsOn("cdtUnpack")
+ }
+ 
+-// We do not currently build GhidraDev plugin at Ghidra build time so we must 
+-// copy the prebuilt zip file from the BIN_REPO
+-rootProject.assembleDistribution {
+-	from ("${BIN_REPO}/GhidraBuild/EclipsePlugins/GhidraDev") {
+-		include 'GhidraDev*.zip'
+-		into "Extensions/Eclipse/GhidraDev/"
++// Upstream copies a prebuilt GhidraDev zip from the private bin repo. That zip
++// is not part of the public source archive, so skip it when it is absent.
++def ghidraDevBin = file("${BIN_REPO}/GhidraBuild/EclipsePlugins/GhidraDev")
++if (ghidraDevBin.isDirectory()) {
++	rootProject.assembleDistribution {
++		from (ghidraDevBin) {
++			include 'GhidraDev*.zip'
++			into "Extensions/Eclipse/GhidraDev/"
++		}
+ 	}
+ }
+ 
+--- a/Ghidra/RuntimeScripts/support/pyghidraRun
++++ b/Ghidra/RuntimeScripts/support/pyghidraRun
+@@ -16,9 +16,9 @@
+ # Apply Java options from externally set environment variables
+ VMARG_LIST="${VMARG_LIST} ${GHIDRA_JAVA_OPTIONS} ${PYGHIDRA_JAVA_OPTIONS}"
+ 
+-# Make sure Python3 is installed
+-if ! [ -x "$(command -v python3)" ] ; then
+-	echo "Python 3 is not installed."
++# Make sure Python is installed
++if ! [ -x "$(command -v python)" ] ; then
++	echo "Python is not installed."
+ 	exit 1
+ fi
+ 
+@@ -32,4 +32,4 @@
+ 
+ PYGHIDRA_LAUNCHER="${INSTALL_DIR}/Ghidra/Features/PyGhidra/support/pyghidra_launcher.py"
+ 
+-python3 "${PYGHIDRA_LAUNCHER}" "${INSTALL_DIR}" ${DEV_ARG} ${VMARG_LIST} "$@"
++python "${PYGHIDRA_LAUNCHER}" "${INSTALL_DIR}" ${DEV_ARG} ${VMARG_LIST} "$@"
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -1,6 +1,6 @@
+ # Increase maximum Gradle heap size (default is 1G)
+ # And fix build in locales with non-default capitalizations (e.g. tr_TR)
+-org.gradle.jvmargs=-Xmx2G -Duser.language=en -Duser.country=US
++org.gradle.jvmargs=-Xmx2G -Duser.language=en -Duser.country=US --enable-native-access=ALL-UNNAMED
+ 
+ # Preserve file system permissions in archives (Gradle 9 uses fixed permissions by default)
+ org.gradle.archives.use-file-system-permissions=true
+--- a/Ghidra/Extensions/SymbolicSummaryZ3/Module.manifest
++++ b/Ghidra/Extensions/SymbolicSummaryZ3/Module.manifest
+@@ -1,6 +1,7 @@
+ MODULE FILE LICENSE: lib/com.microsoft.z3.jar MIT
+ MODULE FILE LICENSE: os/linux_x86_64/libz3.so MIT
+ MODULE FILE LICENSE: os/linux_x86_64/libz3java.so MIT
++MODULE FILE LICENSE: os/linux_arm_64/libz3java.so MIT
+ MODULE FILE LICENSE: os/mac_arm_64/libz3.dylib MIT
+ MODULE FILE LICENSE: os/mac_arm_64/libz3java.dylib MIT
+ MODULE FILE LICENSE: os/mac_x86_64/libz3.dylib MIT
+--- a/Ghidra/Extensions/SymbolicSummaryZ3/src/main/java/ghidra/pcode/emu/symz3/SymZ3.java
++++ b/Ghidra/Extensions/SymbolicSummaryZ3/src/main/java/ghidra/pcode/emu/symz3/SymZ3.java
+@@ -19,10 +19,9 @@
+ 
+ public class SymZ3 {
+ 	public static void loadZ3Libs() {
+-		// Load the libraries using a custom search path before the system tries
++		// libz3java is linked against the system libz3 SONAME.
+ 		String ext = Platform.CURRENT_PLATFORM.getLibraryExtension();
+ 		try {
+-			System.load(Application.getOSFile("libz3" + ext).getPath());
+ 			System.load(Application.getOSFile("libz3java" + ext).getPath());
+ 		}
+ 		catch (OSFileNotFoundException e) {

@@ -1,0 +1,12 @@
+# Ghidra installs its own native tools under /usr/share/ghidra.
+addFilter("E: arch-dependent-file-in-usr-share")
+# Empty Module.manifest files mark modules that ship no extra licensed files.
+addFilter("E: zero-length")
+# Class exercises ship .c/.cpp/.h sources next to the documentation.
+addFilter("W: devel-file-in-non-devel-package")
+# The launcher searches /usr/lib/jvm for javac, which java-devel provides.
+addFilter("E: devel-dependency")
+# Upstream jars record a Class-Path. Repacking them is disabled.
+addFilter("W: class-path-in-manifest")
+# SRPM lint does not see the binary-package issues these filters target.
+addFilter("E: unused-rpmlintrc-filter")
